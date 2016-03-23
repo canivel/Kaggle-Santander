@@ -6,7 +6,8 @@ matplotlib.use("Agg") #Needed to save figures
 from sklearn import cross_validation
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.feature_selection import SelectPercentile, f_classif,chi2
+from sklearn.preprocessing import Binarizer, scale, StandardScaler
 
 training = pd.read_csv("data/train.csv", index_col=0)
 test = pd.read_csv("data/test.csv", index_col=0)
@@ -32,11 +33,7 @@ y = training.TARGET
 # Add zeros per row as extra feature
 X['n0'] = (X == 0).sum(axis=1)
 X['n1'] = X['var38']/X['n0']
-
-
-from sklearn.feature_selection import SelectPercentile
-from sklearn.feature_selection import f_classif,chi2
-from sklearn.preprocessing import Binarizer, scale
+X['n2'] = X['var38']/X['var15']*100
 
 #p = 86 # 308 features validation_1-auc:0.848039
 #p = 80 # 284 features validation_1-auc:0.848414
@@ -87,6 +84,8 @@ print('Overall AUC:', roc_auc_score(y, clf.predict_proba(X_sel, ntree_limit=clf.
 
 test['n0'] = (test == 0).sum(axis=1)
 test['n1'] = test['var38']/test['n0']
+test['n2'] = test['var38']/test['var15']*100
+
 sel_test = test[features]    
 y_pred = clf.predict_proba(sel_test, ntree_limit=clf.best_iteration)
 
