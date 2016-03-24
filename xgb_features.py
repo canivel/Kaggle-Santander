@@ -32,12 +32,13 @@ X = training.iloc[:,:-1]
 y = training.TARGET
 
 # Add zeros per row as extra feature
+X['total'] = X.sum(axis=1)
 X['n0'] = (X == 0).sum(axis=1)
 X['n1'] = (X['var38']/X['n0'])*100
 X['n2'] = (X['var38']/X['var15'])*100
 X['n3'] = X[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
 X['n4'] = (X['var15']/X['n0'])*100
-X['n5'] = ((X['var15']+X['var38'])/X['n0'])*100
+X['n5'] = (X['saldo_var30']/X['total'])*100
 # mean_var38 = X.var38.mean()
 # max_var38 = X.var38.max()
 # min_var38 = X.var38.min()
@@ -97,17 +98,18 @@ clf = xgb.XGBClassifier(missing=9999999999,
                 seed=4242)
 
 
-clf.fit(X_train, y_train, early_stopping_rounds=50, eval_metric="auc",
+clf.fit(X_train, y_train, early_stopping_rounds=25, eval_metric="auc",
         eval_set=[(X_train, y_train), (X_test, y_test)])
 
 print('Overall AUC:', roc_auc_score(y, clf.predict_proba(X_sel, ntree_limit=clf.best_iteration)[:,1]))
 
+test['total'] = test.sum(axis=1)
 test['n0'] = (test == 0).sum(axis=1)
 test['n1'] = (test['var38']/test['n0'])*100
 test['n2'] = (test['var38']/test['var15'])*100
 test['n3'] = test[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
 test['n4'] = (test['var15']/test['n0'])*100
-test['n5'] = ((test['var15']+test['var38'])/test['n0'])*100
+test['n5'] = (test['saldo_var30']/test['total'])*100
 # mean_var38 = test.var38.mean()
 # max_var38 = test.var38.max()
 # min_var38 = test.var38.min()
