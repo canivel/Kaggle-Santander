@@ -1,15 +1,12 @@
 import itertools
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-import matplotlib
-import matplotlib.pyplot as plt
-matplotlib.use("Agg") #Needed to save figures
+# import matplotlib
+# import matplotlib.pyplot as plt
+# matplotlib.use("Agg") #Needed to save figures
 from sklearn import cross_validation
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score
-from sklearn.feature_selection import SelectPercentile, f_classif,chi2
-from sklearn.preprocessing import Binarizer, scale, StandardScaler
-from sklearn.grid_search import GridSearchCV
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.preprocessing import normalize
 from sklearn.decomposition import PCA
@@ -65,35 +62,19 @@ def remove_feat_identicals(data_frame):
         100.0 * (np.float(n_features_deleted) / n_features_originally)))
     return data_frame
 
-# remove constant columns
-# remove = []
-# for col in training.columns:
-#     if training[col].std() == 0:
-#         remove.append(col)
-#
-# training.drop(remove, axis=1, inplace=True)
-# test.drop(remove, axis=1, inplace=True)
-#
-# # remove duplicated columns
-# remove = []
-# c = training.columns
-# for i in range(len(c)-1):
-#     v = training[c[i]].values
-#     for j in range(i+1,len(c)):
-#         if np.array_equal(v,training[c[j]].values):
-#             remove.append(c[j])
-#
-# training.drop(remove, axis=1, inplace=True)
-# test.drop(remove, axis=1, inplace=True)
 
-training = pd.read_csv("data/clean_train.csv", index_col=0)
-test = pd.read_csv("data/clean_test.csv", index_col=0)
 
-# training = remove_feat_constants(training)
-# training = remove_feat_identicals(training)
-#
-# test = remove_feat_constants(test)
-# test = remove_feat_identicals(test)
+training = pd.read_csv("data/train.csv", index_col=0)
+test = pd.read_csv("data/test.csv", index_col=0)
+
+training = remove_feat_constants(training)
+training = remove_feat_identicals(training)
+
+test = remove_feat_constants(test)
+test = remove_feat_identicals(test)
+
+training.to_csv('data/clean_train.csv')
+test.to_csv('data/clean_test.csv')
 
 print(training.shape)
 print(test.shape)
@@ -102,8 +83,6 @@ print(test.shape)
 # See https://www.kaggle.com/cast42/santander-customer-satisfaction/debugging-var3-999999
 # for details
 training = training.replace(-999999,2)
-
-training = training[training.var38 != 117310.979016]
 
 
 # Replace 9999999999 with NaN
@@ -118,54 +97,34 @@ y = training.TARGET
 # Add zeros per row as extra feature
 X['total'] = X.sum(axis=1)
 X['n0'] = (X == 0).sum(axis=1)
-# X['var38_by_n0'] = (X['var38'].mean()/X['n0'])*100
+
+# Normalize each feature to unit norm (vector length)
+x_train_normalized = normalize(X, axis=0)
+
+# Run PCA
+pca = PCA(n_components=6)
+x_train_projected = pca.fit_transform(x_train_normalized)
 
 
-X['var38mc'] = np.isclose(X.var38, 117310.979016)
-X['logvar38'] = X.loc[~X['var38mc'], 'var38'].map(np.log)
-X.loc[X['var38mc'], 'logvar38'] = 0
+# p = 75 # 261 features validation_1-auc:0.836441
+# X_bin = Binarizer().fit_transform(scale(x_train_projected))
+# selectChi2 = SelectPercentile(chi2, percentile=p).fit(X_bin, y)
+# selectF_classif = SelectPercentile(f_classif, percentile=p).fit(x_train_projected, y)
+#
+# chi2_selected = selectChi2.get_support()
+# chi2_selected_features = [ f for i,f in enumerate(x_train_projected.columns) if chi2_selected[i]]
+# print('Chi2 selected {} features {}.'.format(chi2_selected.sum(),
+#    chi2_selected_features))
+# f_classif_selected = selectF_classif.get_support()
+# f_classif_selected_features = [ f for i,f in enumerate(x_train_projected.columns) if f_classif_selected[i]]
+# print('F_classif selected {} features {}.'.format(f_classif_selected.sum(),
+#    f_classif_selected_features))
+# selected = chi2_selected & f_classif_selected
+# print('Chi2 & F_classif selected {} features'.format(selected.sum()))
+# features = [ f for f,s in zip(X.columns, selected) if s]
+# print (features)
 
-# X['var38_by_var15'] = (X['var38']/X['var15'])*100
-# X['mean_top_features'] = X[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
-# X['var15_by_n0'] = (X['var15']/X['n0'])*100
-# X['var38_by_total'] = (X['var38']/X['total'])*100
-# mean_var38 = X.var38.mean()
-# max_var38 = X.var38.max()
-# min_var38 = X.var38.min()
-# rich_factor_var38 = mean_var38+(max_var38-mean_var38)/2
-# poor_factor_var38 = mean_var38-(mean_var38-min_var38)/2
-
-
-#p = 90 # 341 features validation_1-auc:0.848001
-#p = 86 # 308 features validation_1-auc:0.848039
-#p = 80 # 284 features validation_1-auc:0.848414
-#p = 77 # 267 features validation_1-auc:0.848000
-#p = 75 # 261 features validation_1-auc:0.848642
-# p = 73 # 257 features validation_1-auc:0.848338
-# p = 70 # 259 features validation_1-auc:0.848588
-# p = 69 # 238 features validation_1-auc:0.848547
-# p = 67 # 247 features validation_1-auc:0.847925
-# p = 65 # 240 features validation_1-auc:0.846769
-# p = 60 # 222 features validation_1-auc:0.848581
-p = 75 # 261 features validation_1-auc:0.0.845549
-X_bin = Binarizer().fit_transform(scale(X))
-selectChi2 = SelectPercentile(chi2, percentile=p).fit(X_bin, y)
-selectF_classif = SelectPercentile(f_classif, percentile=p).fit(X, y)
-
-chi2_selected = selectChi2.get_support()
-chi2_selected_features = [ f for i,f in enumerate(X.columns) if chi2_selected[i]]
-print('Chi2 selected {} features {}.'.format(chi2_selected.sum(),
-   chi2_selected_features))
-f_classif_selected = selectF_classif.get_support()
-f_classif_selected_features = [ f for i,f in enumerate(X.columns) if f_classif_selected[i]]
-print('F_classif selected {} features {}.'.format(f_classif_selected.sum(),
-   f_classif_selected_features))
-selected = chi2_selected & f_classif_selected
-print('Chi2 & F_classif selected {} features'.format(selected.sum()))
-features = [ f for f,s in zip(X.columns, selected) if s]
-print (features)
-
-X_sel = X[features]
+X_sel = x_train_projected
 
 X_train, X_test, y_train, y_test = \
   cross_validation.train_test_split(X_sel, y, random_state=1301, stratify=y, test_size=0.3)
@@ -188,40 +147,44 @@ print('Overall AUC:', roc_auc_score(y, clf.predict_proba(X_sel, ntree_limit=clf.
 
 test['total'] = test.sum(axis=1)
 test['n0'] = (test == 0).sum(axis=1)
-# test['var38_by_n0'] = (test['var38'].mean()/test['n0'])*100
-test['var38mc'] = np.isclose(test.var38, 117310.979016)
-test['logvar38'] = test.loc[~test['var38mc'], 'var38'].map(np.log)
-test.loc[test['var38mc'], 'logvar38'] = 0
-
-# test['var38_by_var15'] = (test['var38']/test['var15'])*100
-# test['mean_top_features'] = test[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
-# test['var15_by_n0'] = (test['var15']/test['n0'])*100
-# test['var38_by_total'] = (test['var38']/test['total'])*100
+# test['n1'] = (test['var38']/test['n0'])*100
+# test['n2'] = (test['var38']/test['var15'])*100
+# test['n3'] = test[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
+# test['n4'] = (test['var15']/test['n0'])*100
+# test['n5'] = (test['saldo_var30']/test['total'])*100
 # mean_var38 = test.var38.mean()
 # max_var38 = test.var38.max()
 # min_var38 = test.var38.min()
 # rich_factor_var38 = mean_var38+(max_var38-mean_var38)/2
 # poor_factor_var38 = mean_var38-(mean_var38-min_var38)/2
 
-
+# mean_n2 = test.var38.mean()
+# max_n2 = test.n2.max()
+# min_n2 = test.n2.min()
+# rich_factor_n2 = mean_n2+(max_n2-mean_n2)/2
+# poor_factor_n2 = mean_n2-(min_n2-mean_n2)/2
+#
 # test['rich_var38'] = 0
 # test['rich_var38'].loc[(test.var38 > rich_factor_var38)] = 3 # rich
 # test['rich_var38'].loc[(test.var38 <= rich_factor_var38) & (test.var38 >= poor_factor_var38)] = 2 # median
 # test['rich_var38'].loc[(test.var38 < poor_factor_var38)] = 1 # poor
 
 
-sel_test = test[features]    
+#sel_test = test[features]
+x_test_normalized = normalize(test, axis=0)
+sel_test = pca.transform(x_train_normalized)
+
 y_pred = clf.predict_proba(sel_test, ntree_limit=clf.best_iteration)
 
 submission = pd.DataFrame({"ID":test.index, "TARGET":y_pred[:,1]})
 submission.to_csv("submission.csv", index=False)
 
-mapFeat = dict(zip(["f"+str(i) for i in range(len(features))],features))
-ts = pd.Series(clf.booster().get_fscore())
-#ts.index = ts.reset_index()['index'].map(mapFeat)
-ts.sort_values()[-15:].plot(kind="barh", title=("features importance"))
-
-featp = ts.sort_values()[-15:].plot(kind='barh', x='feature', y='fscore', legend=False, figsize=(6, 10))
-plt.title('XGBoost Feature Importance')
-fig_featp = featp.get_figure()
-fig_featp.savefig('feature_importance_xgb.png', bbox_inches='tight', pad_inches=1)
+# mapFeat = dict(zip(["f"+str(i) for i in range(len(features))],features))
+# ts = pd.Series(clf.booster().get_fscore())
+# #ts.index = ts.reset_index()['index'].map(mapFeat)
+# ts.sort_values()[-15:].plot(kind="barh", title=("features importance"))
+#
+# featp = ts.sort_values()[-15:].plot(kind='barh', x='feature', y='fscore', legend=False, figsize=(6, 10))
+# plt.title('XGBoost Feature Importance')
+# fig_featp = featp.get_figure()
+# fig_featp.savefig('feature_importance_xgb.png', bbox_inches='tight', pad_inches=1)
