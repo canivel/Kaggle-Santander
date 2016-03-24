@@ -1,13 +1,14 @@
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.pyplot as plt
 matplotlib.use("Agg") #Needed to save figures
 from sklearn import cross_validation
 import xgboost as xgb
 from sklearn.metrics import roc_auc_score
 from sklearn.feature_selection import SelectPercentile, f_classif,chi2
 from sklearn.preprocessing import Binarizer, scale, StandardScaler
+from sklearn.grid_search import GridSearchCV
 
 training = pd.read_csv("data/train.csv", index_col=0)
 test = pd.read_csv("data/test.csv", index_col=0)
@@ -32,9 +33,28 @@ y = training.TARGET
 
 # Add zeros per row as extra feature
 X['n0'] = (X == 0).sum(axis=1)
-X['n1'] = X['var38']/X['n0']
-X['n2'] = X['var38']/X['var15']*100
+X['n1'] = (X['var38']/X['n0'])*100
+X['n2'] = (X['var38']/X['var15'])*100
+X['n3'] = X[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
+X['n4'] = (X['var15']/X['n0'])*100
+X['n5'] = ((X['var15']+X['var38'])/X['n0'])*100
+# mean_var38 = X.var38.mean()
+# max_var38 = X.var38.max()
+# min_var38 = X.var38.min()
+# rich_factor_var38 = mean_var38+(max_var38-mean_var38)/2
+# poor_factor_var38 = mean_var38-(mean_var38-min_var38)/2
 
+# mean_n2 = X.var38.mean()
+# max_n2 = X.n2.max()
+# min_n2 = X.n2.min()
+# rich_factor_n2 = mean_n2+(max_n2-mean_n2)/2
+# poor_factor_n2 = mean_n2-(min_n2-mean_n2)/2
+
+# X['rich_var38'] = 0
+# X['rich_var38'].loc[(X.var38 > rich_factor_var38)] = 3 # rich
+# X['rich_var38'].loc[(X.var38 <= rich_factor_var38) & (X.var38 >= poor_factor_var38)] = 2 # median
+# X['rich_var38'].loc[(X.var38 < poor_factor_var38)] = 1 # poor
+#p = 90 # 341 features validation_1-auc:0.848001
 #p = 86 # 308 features validation_1-auc:0.848039
 #p = 80 # 284 features validation_1-auc:0.848414
 #p = 77 # 267 features validation_1-auc:0.848000
@@ -45,7 +65,6 @@ p = 75 # 261 features validation_1-auc:0.848642
 # p = 67 # 247 features validation_1-auc:0.847925
 # p = 65 # 240 features validation_1-auc:0.846769
 # p = 60 # 222 features validation_1-auc:0.848581
-
 X_bin = Binarizer().fit_transform(scale(X))
 selectChi2 = SelectPercentile(chi2, percentile=p).fit(X_bin, y)
 selectF_classif = SelectPercentile(f_classif, percentile=p).fit(X, y)
@@ -71,20 +90,41 @@ X_train, X_test, y_train, y_test = \
 clf = xgb.XGBClassifier(missing=9999999999,
                 max_depth = 5,
                 n_estimators=1000,
-                learning_rate=0.02, 
+                learning_rate=0.02,
                 nthread=4,
                 subsample=0.7,
-                colsample_bytree=0.7, 
+                colsample_bytree=0.7,
                 seed=4242)
+
 
 clf.fit(X_train, y_train, early_stopping_rounds=50, eval_metric="auc",
         eval_set=[(X_train, y_train), (X_test, y_test)])
-        
+
 print('Overall AUC:', roc_auc_score(y, clf.predict_proba(X_sel, ntree_limit=clf.best_iteration)[:,1]))
 
 test['n0'] = (test == 0).sum(axis=1)
-test['n1'] = test['var38']/test['n0']
-test['n2'] = test['var38']/test['var15']*100
+test['n1'] = (test['var38']/test['n0'])*100
+test['n2'] = (test['var38']/test['var15'])*100
+test['n3'] = test[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
+test['n4'] = (test['var15']/test['n0'])*100
+test['n5'] = ((test['var15']+test['var38'])/test['n0'])*100
+# mean_var38 = test.var38.mean()
+# max_var38 = test.var38.max()
+# min_var38 = test.var38.min()
+# rich_factor_var38 = mean_var38+(max_var38-mean_var38)/2
+# poor_factor_var38 = mean_var38-(mean_var38-min_var38)/2
+
+# mean_n2 = test.var38.mean()
+# max_n2 = test.n2.max()
+# min_n2 = test.n2.min()
+# rich_factor_n2 = mean_n2+(max_n2-mean_n2)/2
+# poor_factor_n2 = mean_n2-(min_n2-mean_n2)/2
+#
+# test['rich_var38'] = 0
+# test['rich_var38'].loc[(test.var38 > rich_factor_var38)] = 3 # rich
+# test['rich_var38'].loc[(test.var38 <= rich_factor_var38) & (test.var38 >= poor_factor_var38)] = 2 # median
+# test['rich_var38'].loc[(test.var38 < poor_factor_var38)] = 1 # poor
+
 
 sel_test = test[features]    
 y_pred = clf.predict_proba(sel_test, ntree_limit=clf.best_iteration)
