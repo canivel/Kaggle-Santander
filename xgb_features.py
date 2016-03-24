@@ -95,15 +95,13 @@ test = pd.read_csv("data/clean_test.csv", index_col=0)
 # test = remove_feat_constants(test)
 # test = remove_feat_identicals(test)
 
-print(training.shape)
-print(test.shape)
+# print(training.shape)
+# print(test.shape)
 
 # Replace -999999 in var3 column with most common value 2 
 # See https://www.kaggle.com/cast42/santander-customer-satisfaction/debugging-var3-999999
 # for details
 training = training.replace(-999999,2)
-
-training = training[training.var38 != 117310.979016]
 
 
 # Replace 9999999999 with NaN
@@ -116,24 +114,27 @@ X = training.iloc[:,:-1]
 y = training.TARGET
 
 # Add zeros per row as extra feature
-X['total'] = X.sum(axis=1)
-X['n0'] = (X == 0).sum(axis=1)
+
+# X['sum_saldos'] = X[["saldo_var30",
+#                            "saldo_var42",
+#                            "saldo_var5",
+#                            "saldo_medio_var5_hace2",
+#                            "saldo_medio_var5_hace3",
+#                            "saldo_medio_var5_ult3",
+#                            "saldo_medio_var5_ult1"]].mean(axis=1)
+#
+# X['perc_saldos'] = X['sum_saldos']/X['total']
+
 # X['var38_by_n0'] = (X['var38'].mean()/X['n0'])*100
 
-
-X['var38mc'] = np.isclose(X.var38, 117310.979016)
-X['logvar38'] = X.loc[~X['var38mc'], 'var38'].map(np.log)
-X.loc[X['var38mc'], 'logvar38'] = 0
+# X['var38mc'] = np.isclose(X.var38, 117310.979016)
+# X['logvar38'] = X.loc[~X['var38mc'], 'var38'].map(np.log)
+# X.loc[X['var38mc'], 'logvar38'] = 0
 
 # X['var38_by_var15'] = (X['var38']/X['var15'])*100
 # X['mean_top_features'] = X[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
 # X['var15_by_n0'] = (X['var15']/X['n0'])*100
 # X['var38_by_total'] = (X['var38']/X['total'])*100
-# mean_var38 = X.var38.mean()
-# max_var38 = X.var38.max()
-# min_var38 = X.var38.min()
-# rich_factor_var38 = mean_var38+(max_var38-mean_var38)/2
-# poor_factor_var38 = mean_var38-(mean_var38-min_var38)/2
 
 
 #p = 90 # 341 features validation_1-auc:0.848001
@@ -166,9 +167,20 @@ features = [ f for f,s in zip(X.columns, selected) if s]
 print (features)
 
 X_sel = X[features]
+# number_of_folds=10
+# y_values = y.values
+# kfolder = cross_validation.StratifiedKFold(y_values, n_folds=number_of_folds, shuffle=True, random_state=15)
+#
+#
+#
+# for train_index, test_index in kfolder:
+#     print (train_index)
+#     # X_train, X_test = X_sel[train_index], X_sel[test_index]
+#     # y_train, y_test = y[train_index], y[test_index]
+
 
 X_train, X_test, y_train, y_test = \
-  cross_validation.train_test_split(X_sel, y, random_state=1301, stratify=y, test_size=0.3)
+  cross_validation.train_test_split(X_sel, y, random_state=1301, stratify=y, test_size=0.3, number_of_folds=10)
 
 clf = xgb.XGBClassifier(missing=9999999999,
                         max_depth = 8,
@@ -178,7 +190,7 @@ clf = xgb.XGBClassifier(missing=9999999999,
                         subsample=0.8,
                         colsample_bytree=0.5,
                         min_child_weight = 8,
-                        seed=4242)
+                        seed=1313)
 
 
 clf.fit(X_train, y_train, early_stopping_rounds=50, eval_metric="auc",
@@ -188,10 +200,23 @@ print('Overall AUC:', roc_auc_score(y, clf.predict_proba(X_sel, ntree_limit=clf.
 
 test['total'] = test.sum(axis=1)
 test['n0'] = (test == 0).sum(axis=1)
+# test['sum_saldos'] = test[["saldo_var30",
+#                            "saldo_var42",
+#                            "saldo_var5",
+#                            "saldo_medio_var5_hace2",
+#                            "saldo_medio_var5_hace3",
+#                            "saldo_medio_var5_ult3",
+#                            "saldo_medio_var5_ult1"]].mean(axis=1)
+#
+# test['perc_saldos'] = test['sum_saldos']/test['total']
+
+# test['age'] = 0
+# test['age'].loc[(test.var15 <= 40)] = 1
+
 # test['var38_by_n0'] = (test['var38'].mean()/test['n0'])*100
-test['var38mc'] = np.isclose(test.var38, 117310.979016)
-test['logvar38'] = test.loc[~test['var38mc'], 'var38'].map(np.log)
-test.loc[test['var38mc'], 'logvar38'] = 0
+# test['var38mc'] = np.isclose(test.var38, 117310.979016)
+# test['logvar38'] = test.loc[~test['var38mc'], 'var38'].map(np.log)
+# test.loc[test['var38mc'], 'logvar38'] = 0
 
 # test['var38_by_var15'] = (test['var38']/test['var15'])*100
 # test['mean_top_features'] = test[["var15", "var38", "saldo_var30", "saldo_medio_var5_hace2", "saldo_medio_var5_hace3"]].mean(axis=1)
