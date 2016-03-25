@@ -9,6 +9,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.feature_selection import SelectPercentile, f_classif,chi2
 from sklearn.preprocessing import Binarizer, scale, StandardScaler
 from sklearn.grid_search import GridSearchCV
+from sklearn.ensemble import VotingClassifier
 
 training = pd.read_csv("data/train.csv", index_col=0)
 test = pd.read_csv("data/test.csv", index_col=0)
@@ -34,19 +35,12 @@ y = training.TARGET
 # Add zeros per row as extra feature
 X['n0'] = (X == 0).sum(axis=1)
 X['n1'] = X['var38']/X['n0']
-X['n2'] = X['var38']/X['var15']*100
 
-#p = 90 # 341 features validation_1-auc:0.848001
-#p = 86 # 308 features validation_1-auc:0.848039
-#p = 80 # 284 features validation_1-auc:0.848414
-#p = 77 # 267 features validation_1-auc:0.848000
+test['n0'] = (test == 0).sum(axis=1)
+test['n1'] = test['var38']/test['n0']
+
 p = 75 # 261 features validation_1-auc:0.848642
-# p = 73 # 257 features validation_1-auc:0.848338
-# p = 70 # 259 features validation_1-auc:0.848588
-# p = 69 # 238 features validation_1-auc:0.848547
-# p = 67 # 247 features validation_1-auc:0.847925
-# p = 65 # 240 features validation_1-auc:0.846769
-# p = 60 # 222 features validation_1-auc:0.848581
+
 X_bin = Binarizer().fit_transform(scale(X))
 selectChi2 = SelectPercentile(chi2, percentile=p).fit(X_bin, y)
 selectF_classif = SelectPercentile(f_classif, percentile=p).fit(X, y)
@@ -66,71 +60,72 @@ print (features)
 
 X_sel = X[features]
 
-X_train, X_test, y_train, y_test = \
-  cross_validation.train_test_split(X_sel, y, random_state=1301, stratify=y, test_size=0.3)
+sel_test = test[features]
 
-xgb_model = xgb.XGBClassifier()
+X_train, X_test, y_train, y_test = cross_validation.train_test_split(X_sel, y, random_state=1301, stratify=y, test_size=0.3)
 
-parameters = {
-              'missing' : [9999999999],
-              'nthread':[4], #when use hyperthread, xgboost may become slower
-              #'objective':['binary:logistic'],
-              'learning_rate': [0.02, 0.1], #so called `eta` value
-              'max_depth': [5,6],
-              'min_child_weight': [3],
-              'silent': [1],
-              'subsample': [0.7],
-              'colsample_bytree': [0.7],
-              'n_estimators': [100, 1000], #number of trees
-              'seed': [1337]}
+# xgb_model = xgb.XGBClassifier(
+#     objective='binary:logistic',
+#     missing=9999999999,
+#     nthread=4)
 
-clf = GridSearchCV(xgb_model, parameters, n_jobs=4,
-                   cv=cross_validation.StratifiedKFold(y_train, n_folds=2, shuffle=True),
-                   verbose=2, refit=True,scoring='roc_auc')
+# parameters = {
+#               'learning_rate': [0.02, 0.1], #so called `eta` value
+#               'max_depth': [5, 12],
+#               'min_child_weight': [1, 3],
+#               'subsample': [0.7, 0.5],
+#               'colsample_bytree': [0.7, 1]
+#               }
 
-# clf = xgb.XGBClassifier(missing=9999999999,
-#                 max_depth = 5,
-#                 n_estimators=1000,
-#                 learning_rate=0.02,
-#                 nthread=4,
-#                 subsample=0.7,
-#                 colsample_bytree=0.7,
-#                 seed=4242)
+# clf = GridSearchCV(xgb_model, parameters, n_jobs=4,
+#                    cv=cross_validation.StratifiedKFold(y_train, n_folds=2, shuffle=True),
+#                    verbose=2, refit=True,scoring='roc_auc')
+# ('Raw AUC score:', 0.8309212299879124)
+# colsample_bytree: 0.7
+# learning_rate: 0.1
+# max_depth: 5
+# min_child_weight: 3
+# subsample: 0.7
+
+# clf.fit(X_train, y_train)
 #
-# clf.fit(X_train, y_train, early_stopping_rounds=50, eval_metric="auc",
-#         eval_set=[(X_train, y_train), (X_test, y_test)])
+# best_parameters, score, _ = max(clf.grid_scores_, key=lambda x: x[1])
+# print('Raw AUC score:', score)
+# for param_name in sorted(best_parameters.keys()):
+#     print("%s: %r" % (param_name, best_parameters[param_name]))
 
-clf.fit(X_train, y_train)
+XGBClassifier1 = xgb.XGBClassifier(objective='binary:logistic',
+                                   missing=9999999999,
+                                   nthread=4,
+                                   n_estimators=400,
+                                   max_depth=5,
+                                   learning_rate=0.1,
+                                   subsample=0.85,
+                                   colsample_bytree=0.7,
+                                   colsample_bylevel=0.8,
+                                   min_child_weight=5,
+                                   gamma=1,
+                                   seed=23)
+XGBClassifier2 = xgb.XGBClassifier(objective='binary:logistic',
+                                   missing=9999999999,
+                                   max_depth=8,
+                                   n_estimators=1000,
+                                   learning_rate=0.05,
+                                   nthread=4,
+                                   subsample=0.8,
+                                   colsample_bytree=0.5,
+                                   min_child_weight=8,
+                                   seed=1313)
+#0.825461
+classifier = VotingClassifier([('clf1', XGBClassifier1), ('clf2', XGBClassifier2)], voting='soft', weights=[1, 1])
 
-best_parameters, score, _ = max(clf.grid_scores_, key=lambda x: x[1])
-print('Raw AUC score:', score)
-for param_name in sorted(best_parameters.keys()):
-    print("%s: %r" % (param_name, best_parameters[param_name]))
+classifier.fit(X_train, y_train)
 
-'''
-('Raw AUC score:', 0.82942176116108446)
-colsample_bytree: 0.7
-learning_rate: 0.1
-max_depth: 5
-min_child_weight: 3
-missing: 9999999999
-n_estimators: 100
-nthread: 4
-seed: 1337
-silent: 1
-subsample: 0.7
-'''
 
-test['n0'] = (test == 0).sum(axis=1)
-test['n1'] = test['var38']/test['n0']
-test['n2'] = test['var38']/test['var15']*100
+testingPreds=classifier.predict_proba(sel_test);
+submission = pd.DataFrame({"ID":test.index, "TARGET":testingPreds[:,1]})
+submission.to_csv("XGBoostEnsembled.csv", index=False)
 
-sel_test = test[features]    
-#y_pred = clf.predict_proba(sel_test, ntree_limit=clf.best_iteration)
-y_pred = clf.predict_proba(sel_test)
-
-submission = pd.DataFrame({"ID":test.index, "TARGET":y_pred[:,1]})
-submission.to_csv("submission.csv", index=False)
 
 # mapFeat = dict(zip(["f"+str(i) for i in range(len(features))],features))
 # ts = pd.Series(clf.booster().get_fscore())
