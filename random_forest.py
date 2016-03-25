@@ -1,6 +1,6 @@
 import pandas
 from sklearn import cross_validation
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier, ExtraTreesClassifier, AdaBoostClassifier
 from sklearn.tree import DecisionTreeClassifier
 import numpy as np
 from sklearn.preprocessing import Binarizer, scale, StandardScaler
@@ -67,7 +67,7 @@ X_test['n0'] = (X_train == 0).sum(axis=1)
 #p = 50 # 0.830174696959
 #p = 45 # 0.831054096049
 #p = 40 # 0.83145710484
-p = 39 # 0.831727576995
+p = 39 # 0.834694917771
 #p = 38 # 0.830570176831
 #p = 35 # 0.831077883599
 #p = 30 # 0.830324484692
@@ -94,7 +94,8 @@ print (features)
 X_sel = X_train[features]
 sel_test = X_test[features]
 
-clf = RandomForestClassifier(bootstrap=True,
+# set up RF_1
+rf_1 = RandomForestClassifier(bootstrap=True,
                              criterion='entropy',
                              min_samples_split=20,
                              max_depth=17,
@@ -103,6 +104,29 @@ clf = RandomForestClassifier(bootstrap=True,
                              oob_score=False,
                              random_state=1301,
                              verbose=1)
+
+# set up RF_2
+dt_1 = DecisionTreeClassifier(criterion='entropy',
+                              max_depth=17,
+                              max_leaf_nodes=16,
+                              random_state=4242)
+
+ab_1 = AdaBoostClassifier(
+    n_estimators=20,
+    learning_rate=0.75,
+    base_estimator=ExtraTreesClassifier(
+        n_estimators=400,
+        max_features=30,
+        max_depth=12,
+        min_samples_leaf=100,
+        min_samples_split=100,
+        verbose=1,
+        n_jobs=-1))
+
+clfs = [('rf', rf_1), ('dt', dt_1), ('ab', ab_1)]
+# set up ensemble of rf_1 and rf_2
+clf = VotingClassifier(estimators=clfs, voting='soft', weights=[2, 1, 1])
+
 
 # clf = DecisionTreeClassifier(criterion='entropy',
 #                              max_depth=17,

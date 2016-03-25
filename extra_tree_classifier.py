@@ -1,6 +1,7 @@
 import pandas
 from sklearn import cross_validation
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier, ExtraTreesClassifier, AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
 import numpy as np
 from sklearn.preprocessing import Binarizer, scale, StandardScaler
 from sklearn.grid_search import GridSearchCV
@@ -38,19 +39,23 @@ for i in range(len(c)-1):
 X_train.drop(remove, axis=1, inplace=True)
 X_test.drop(remove, axis=1, inplace=True)
 
-X_train['total'] = X_train.sum(axis=1)
+# X_train['total'] = X_train.sum(axis=1)
 X_train['n0'] = (X_train == 0).sum(axis=1)
-# X['var38_by_n0'] = (X['var38'].mean()/X['n0'])*100
-X_train['var38mc'] = np.isclose(X_train.var38, 117310.979016)
-X_train['logvar38'] = X_train.loc[~X_train['var38mc'], 'var38'].map(np.log)
-X_train.loc[X_train['var38mc'], 'logvar38'] = 0
+# X_train['var38_by_n0'] = (X_train['var38'].mean()/X_train['n0'])*100
+#print(X_train[['var38', 'n0', 'var15']])
+# X_train['var38'] = np.isclose(X_train.var38, 117310.979016)
+# X_train['logvar38'] = X_train.loc[~X_train['var38mc'], 'var38'].map(np.log)
+# X_train.loc[X_train['var38mc'], 'logvar38'] = 0
 
-X_test['total'] = X_test.sum(axis=1)
+# X_test['total'] = X_test.sum(axis=1)
 X_test['n0'] = (X_train == 0).sum(axis=1)
-# X['var38_by_n0'] = (X['var38'].mean()/X['n0'])*100
-X_test['var38mc'] = np.isclose(X_test.var38, 117310.979016)
-X_test['logvar38'] = X_test.loc[~X_test['var38mc'], 'var38'].map(np.log)
-X_test.loc[X_test['var38mc'], 'logvar38'] = 0
+
+# X_test['var38_by_n0'] = (X_test['var38'].mean()/X_test['n0'])*100
+# X_test['var38mc'] = np.isclose(X_test.var38, 117310.979016)
+# X_test['logvar38'] = X_test.loc[~X_test['var38mc'], 'var38'].map(np.log)
+# X_test.loc[X_test['var38mc'], 'logvar38'] = 0
+
+#print(X_train[['var38', 'n0', 'var15']])
 
 #END FEATURES ENGINEERING
 
@@ -62,7 +67,7 @@ X_test.loc[X_test['var38mc'], 'logvar38'] = 0
 #p = 50 # 0.830174696959
 #p = 45 # 0.831054096049
 #p = 40 # 0.83145710484
-p = 75 # 0.831727576995
+p = 39 # 0.834694917771
 #p = 38 # 0.830570176831
 #p = 35 # 0.831077883599
 #p = 30 # 0.830324484692
@@ -89,16 +94,19 @@ print (features)
 X_sel = X_train[features]
 sel_test = X_test[features]
 
-clf = ExtraTreesClassifier(criterion='entropy',
-                            min_samples_split=20,
-                            max_depth=17,
-                            n_estimators=1000,
-                            n_jobs=4,
-                            oob_score=False,
-                            random_state=1301,
-                            verbose=1)
+clf = AdaBoostClassifier(
+    n_estimators=20,
+    learning_rate=0.75,
+    base_estimator=ExtraTreesClassifier(
+        n_estimators=400,
+        max_features=30,
+        max_depth=12,
+        min_samples_leaf=100,
+        min_samples_split=100,
+        verbose=1,
+        n_jobs=-1))
 
-#0.788730558905
+
 # param_grid = {
 #     #'n_estimators': [100],
 #     #'max_features': ['auto', 'sqrt', 'log2'],
@@ -120,4 +128,4 @@ clf.fit(X_sel, y_train)
 y_pred = clf.predict_proba(sel_test)
 
 submission = pandas.DataFrame({"ID":id_test, "TARGET":y_pred[:,1]})
-submission.to_csv("submission_rf.csv", index=False)
+submission.to_csv("submission_etc.csv", index=False)
